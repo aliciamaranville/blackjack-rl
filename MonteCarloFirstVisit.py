@@ -11,6 +11,7 @@ from collections import defaultdict
 # Parameters
 epsilon = 0.1  
 num_episodes = 500000
+gamma = 1.0
 
 # Create Gymnasium blackjack environment
 env = gym.make('Blackjack-v1', natural=False, sab=False)
@@ -26,39 +27,42 @@ returns = np.zeros((32, 11, 2, 2))
 # Function to estimate the estimating state-action values Using Monte Carlo first visit.
 def monte_carlo_fv():
     num_wins = 0 
-    episode_rewards = []  # For every episode, store the reward
+    episode_rewards = []  # For every episode, store the total reward
     win_rates = []  # For every 1000 episodes, store win rate
     
-
     for episode in range(num_episodes):
-        s, _ = env.reset()  # reset environment, get inital state
+        s, _ = env.reset()  # Reset environment, get initial state s
         episode_history = []  # Store (state, action, reward) for this episode
         done = False
         episode_reward = 0
         visited_pairs = set()  # Tracks first occurrences of (state, action) pairs
 
+        # Simulate the episode
         while not done:
-            a = e_greedy(s)  # use epsilon greedy policy to select action, a
-            next_s, reward, done, truncated, _ = env.step(a)  # Take action and observe outcome
-            episode_history.append((s, a, reward))  # Store episode history
-            s = next_s  # Move to next state
+            a = e_greedy(s)  # Use epsilon-greedy policy to select action
+            next_s, reward, done, truncated, _ = env.step(a)  # Take action
+            episode_history.append((s, a, reward))  # Store transition
+            s = next_s  
             episode_reward += reward  
 
-        # Process episode history and update Q-values
-        for i, (s, a, reward) in enumerate(episode_history):
-            state_index = (s[0] - 1, s[1] - 1, s[2], a)  # Convert state to index
+        # Compute returns and update Q-values for first visits
+        G = 0  
+        for t in range(len(episode_history) - 1, -1, -1):  # Backward pass
+            s, a, reward = episode_history[t]
+            state_index = (s[0] - 1, s[1] - 1, s[2], a)
+            G = reward + gamma * G 
             
             if state_index not in visited_pairs:  # First-visit check
-                visited_pairs.add(state_index)  # Mark this (state, action) as visited
-                returns[state_index] += reward 
+                visited_pairs.add(state_index)  # Mark as visited
+                returns[state_index] += G  # Add full return
                 num_visits[state_index] += 1  
-                Q[state_index] = returns[state_index] / num_visits[state_index]  # Compute new Q-value
+                Q[state_index] = returns[state_index] / num_visits[state_index]  
 
-        episode_rewards.append(episode_reward)  # Store total reward for this episode
-        if reward == 1:
-            num_wins += 1  # Increment win count
+        episode_rewards.append(episode_reward)  
+        if episode_history[-1][2] == 1:  # Check final reward for win
+            num_wins += 1  
 
-        if (episode + 1) % 1000 == 0:  # Compute win rate every 1000 episodes
+        if (episode + 1) % 1000 == 0:  
             win_rates.append(num_wins / (episode + 1))
 
     return episode_rewards, win_rates, num_wins / num_episodes  

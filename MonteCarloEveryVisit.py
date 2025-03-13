@@ -17,30 +17,30 @@ env = gym.make('Blackjack-v1', natural=False, sab=False)
 
 # Initialize Q-table and returns table
 Q = np.zeros((32, 11, 2, 2))  
-returns = np.zeros((32, 11, 2, 2))  
 num_visits = np.zeros((32, 11, 2, 2))  
+returns = np.zeros((32, 11, 2, 2))  
 
 
-# ----------- Monte Carlo Implementation -----------------
+# ----------- Monte Carlo Implimentation -----------------
     
 # Function to estimate the estimating state-action values Using Monte Carlo Every Visit
 def monte_carlo_ev():
     num_wins = 0  
-    total_rewards = []  # Stores the total reward for each episode
+    episode_rewards = []  # Stores the total reward for each episode
     win_rates = []  # Stores win rate for every 1000 episodes
 
     for episode in range(num_episodes):
         s, _ = env.reset()  # reset environment, get initial state s
         episode_history = []  # Stores (state, action, reward) for this episode
         done = False
-        total_reward = 0
+        episode_reward = 0
 
         while not done:
             a = e_greedy(s)  # Select action, a, using epsilon-greedy policy
             next_s, reward, done, truncated, _ = env.step(a)  # Take action and observe outcome
             episode_history.append((s, a, reward))  # Store episode history
             s = next_s  # Move to next state
-            total_reward += reward  
+            episode_reward += reward  
 
         # Process episode history and update Q-values
         for s, a, reward in episode_history:
@@ -49,14 +49,14 @@ def monte_carlo_ev():
             num_visits[state_index] += 1  
             Q[state_index] = returns[state_index] / num_visits[state_index]  # Compute the new Q-value
 
-        total_rewards.append(total_reward)  # Store total reward for this episode
+        episode_rewards.append(episode_reward)  # Store total reward for this episode
         if reward == 1:
             num_wins += 1  
 
         if (episode + 1) % 1000 == 0:  # Compute win rate every 1000 episodes
             win_rates.append(num_wins / (episode + 1))
 
-    return total_rewards, win_rates, num_wins / num_episodes  
+    return episode_rewards, win_rates, num_wins / num_episodes  
 
 
 # define epsilon greedy policy, with input state s
@@ -93,7 +93,7 @@ def policy_evaluation(Q, num_episodes=100000):
 
 
 # Run Monte Carlo training
-total_rewards, win_rates, total_training_win_rate = monte_carlo_ev()
+episode_rewards, win_rates, total_training_win_rate = monte_carlo_ev()
 
 # Evaluate final policy
 num_wins, num_draws, num_loss = policy_evaluation(Q, num_episodes=100000)
@@ -203,7 +203,7 @@ plt.show()
 
 
 # Total Rewards over Episodes line plot
-plt.plot(total_rewards)
+plt.plot(episode_rewards)
 plt.xlabel('Episode')
 plt.ylabel('Total Reward')
 plt.title('Monte Carlo Every Visit - Training Performance')

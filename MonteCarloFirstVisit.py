@@ -21,7 +21,7 @@ returns = np.zeros((32, 11, 2, 2))
 num_visits = np.zeros((32, 11, 2, 2))  
 
 
-# ----------- Monte Carlo Implimentation -----------------
+# ----------- Monte Carlo Implementation -----------------
 
 # Function to estimate the estimating state-action values Using Monte Carlo first visit.
 def monte_carlo_fv():

@@ -7,18 +7,19 @@ from tqdm import tqdm
 from matplotlib.patches import Patch
 
 # Constants
-NUM_EPISODES = 1_000_000
+NUM_EPISODES = 100_000
 WINDOW_SIZE = 5000
 LEARNING_RATE = 0.01
 START_EPSILON = 1.0
 EPSILON_DECAY = START_EPSILON / (NUM_EPISODES / 2)
 FINAL_EPSILON = 0.1
-DISCOUNT_FACTOR = 0.95
+DISCOUNT_FACTOR = 0.9
 
 # ----------- Q-learning Agent Code -----------
 class BlackjackAgent:
     def __init__(self, env, learning_rate, initial_epsilon, epsilon_decay, final_epsilon, discount_factor):
         """Initialize the agent with Q-values, learning rate, and epsilon values."""
+        self.env = env
         self.q_values = defaultdict(lambda: np.zeros(env.action_space.n))
         self.lr = learning_rate
         self.discount_factor = discount_factor
@@ -30,7 +31,7 @@ class BlackjackAgent:
     def get_action(self, obs):
         """Choose an action based on epsilon-greedy strategy."""
         if np.random.random() < self.epsilon:
-            return env.action_space.sample()  # Random action
+            return self.env.action_space.sample()  # Random action
         else:
             return int(np.argmax(self.q_values[obs]))  # Greedy action
 
@@ -50,6 +51,7 @@ class BlackjackAgent:
 def train_qlearning_agent(env, agent, num_episodes):
     """Train the Q-learning agent."""
     env = gym.wrappers.RecordEpisodeStatistics(env, buffer_length=num_episodes)
+
     for episode in tqdm(range(num_episodes)):
         obs, _ = env.reset()
         done = False
@@ -62,7 +64,7 @@ def train_qlearning_agent(env, agent, num_episodes):
             obs = next_obs
 
         agent.decay_epsilon()
-
+    
     return env
 
 # ----------- Policy Grid Creation -----------

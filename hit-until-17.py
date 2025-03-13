@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Create the Blackjack environment
-env = gym.make('Blackjack-v1', natural=False, sab=False)
+env = gym.make('Blackjack-v1', sab=True)
 
 # Track rewards, busts, and outcomes (win/loss/draw))
 total_rewards_basic = []
@@ -12,7 +12,7 @@ losses_basic = 0
 draws_basic = 0
 
 # Number of episodes to run
-num_episodes = 100000
+num_episodes = 100_000
 
 def fixed_strategy(state):
     return 1 if state[0] < 17 else 0  # Hit if sum < 17, otherwise Stand

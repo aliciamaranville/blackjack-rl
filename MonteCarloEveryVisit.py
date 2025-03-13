@@ -11,7 +11,7 @@ from collections import defaultdict
 # Parameters
 epsilon = 0.1  
 num_episodes = 500000  
-gamma = 0.1
+gamma = 1.0
 
 # Create Gymnasiam blackjack environment
 env = gym.make('Blackjack-v1', natural=False, sab=False)

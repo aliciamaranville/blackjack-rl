@@ -10,24 +10,20 @@ from matplotlib.patches import Patch
 NUM_EPISODES = 100_000
 WINDOW_SIZE = 5000
 LEARNING_RATE = 0.01
-START_EPSILON = 1.0
-EPSILON_DECAY = START_EPSILON / (NUM_EPISODES / 2)
-FINAL_EPSILON = 0.1
+EPSILON = 0.1
 DISCOUNT_FACTOR = 0.9
 TRACE_DECAY = 0.6  # Lambda for TD(0.6)
 
 # ----------- Q-learning with TD(0.6) -----------
 class BlackjackAgent:
-    def __init__(self, env, learning_rate, initial_epsilon, epsilon_decay, final_epsilon, discount_factor, trace_decay):
+    def __init__(self, env, learning_rate, epsilon, discount_factor, trace_decay):
         """Initialize the agent with Q-values, learning rate, and eligibility traces."""
         self.env = env
         self.q_values = defaultdict(lambda: np.zeros(env.action_space.n))
         self.e_values = defaultdict(lambda: np.zeros(env.action_space.n))  # Eligibility traces
         self.lr = learning_rate
         self.discount_factor = discount_factor
-        self.epsilon = initial_epsilon
-        self.epsilon_decay = epsilon_decay
-        self.final_epsilon = final_epsilon
+        self.epsilon = epsilon
         self.trace_decay = trace_decay
         self.training_error = []
 
@@ -54,10 +50,6 @@ class BlackjackAgent:
 
         self.training_error.append(td_error)
 
-    def decay_epsilon(self):
-        """Decay epsilon over time to reduce exploration."""
-        self.epsilon = max(self.final_epsilon, self.epsilon - self.epsilon_decay)
-
     def reset_traces(self):
         """Reset eligibility traces at the start of each episode."""
         self.e_values = defaultdict(lambda: np.zeros(self.env.action_space.n))
@@ -65,22 +57,25 @@ class BlackjackAgent:
 def train_qlearning_agent(env, agent, num_episodes):
     """Train the Q-learning agent with eligibility traces."""
     env = gym.wrappers.RecordEpisodeStatistics(env, buffer_length=num_episodes)
+    rewards = []
 
     for episode in tqdm(range(num_episodes)):
         obs, _ = env.reset()
         done = False
+        ep_reward = 0
         agent.reset_traces()  # Reset eligibility traces at episode start
 
         while not done:
             action = agent.get_action(obs)
             next_obs, reward, terminated, truncated, _ = env.step(action)
+            ep_reward += reward
             agent.update(obs, action, reward, terminated, next_obs)
             done = terminated or truncated
             obs = next_obs
 
-        agent.decay_epsilon()
+        rewards.append(ep_reward)
 
-    return env
+    return env, rewards
 
 # ----------- Policy Grid Creation -----------
 def create_grids(agent, usable_ace=False):
@@ -194,9 +189,7 @@ if __name__ == "__main__":
     agent = BlackjackAgent(
         env=env,
         learning_rate=LEARNING_RATE,
-        initial_epsilon=START_EPSILON,
-        epsilon_decay=EPSILON_DECAY,
-        final_epsilon=FINAL_EPSILON,
+        epsilon=EPSILON,
         discount_factor=DISCOUNT_FACTOR,
         trace_decay=TRACE_DECAY,
     )
@@ -205,7 +198,7 @@ if __name__ == "__main__":
     env = train_qlearning_agent(env, agent, NUM_EPISODES)
 
     # Plot training metrics
-    plot_training_metrics(env, agent)
+    #plot_training_metrics(env, agent)
 
     # Create and plot value and policy grids
     value_grid, policy_grid = create_grids(agent, usable_ace=True)

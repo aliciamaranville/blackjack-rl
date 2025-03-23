@@ -1,27 +1,26 @@
 import gymnasium as gym
 import numpy as np
-import matplotlib.pyplot as plt
+import random
 import seaborn as sns
-from collections import defaultdict
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+from collections import defaultdict
 from matplotlib.patches import Patch
 
-# Constants
+# ----------- Setup -----------------
 NUM_EPISODES = 100_000
-WINDOW_SIZE = 5000
-LEARNING_RATE = 0.01
 EPSILON = 0.1
 DISCOUNT_FACTOR = 0.9
 
-# ----------- Q-learning Agent Code -----------
+# ----------- Monte Carlo Agent Code -----------
 class BlackjackAgent:
-    def __init__(self, env, learning_rate, epsilon, discount_factor):
-        """Initialize the agent with Q-values, learning rate, and epsilon values."""
+    def __init__(self, env, epsilon, discount_factor):
+        """Initialize the agent with Q-values, epsilon, and discount factor."""
         self.env = env
-        self.q_values = defaultdict(lambda: np.zeros(env.action_space.n))
-        self.lr = learning_rate
-        self.discount_factor = discount_factor
+        self.q_values = defaultdict(lambda: np.zeros(env.action_space.n))  # State-action Q-values
+        self.num_visits = defaultdict(lambda: np.zeros(env.action_space.n))  # Visit count for each state-action pair
         self.epsilon = epsilon
+        self.discount_factor = discount_factor
         self.training_error = []
 
     def get_action(self, obs):
@@ -31,38 +30,43 @@ class BlackjackAgent:
         else:
             return int(np.argmax(self.q_values[obs]))  # Greedy action
 
-    def update(self, obs, action, reward, terminated, next_obs):
-        """Update the Q-values using temporal difference learning."""
-        future_q_value = (not terminated) * np.max(self.q_values[next_obs])
-        temporal_difference = (
-            reward + self.discount_factor * future_q_value - self.q_values[obs][action]
-        )
-        self.q_values[obs][action] += self.lr * temporal_difference
-        self.training_error.append(temporal_difference)
+    def update(self, episode_history):
+        """Update the Q-values using Monte Carlo Every-Visit method."""
+        G = 0  # Initialize return
+        for s, a, reward in reversed(episode_history):
+            G = reward + self.discount_factor * G
+            self.num_visits[s][a] += 1
+            self.q_values[s][a] += (G - self.q_values[s][a]) / self.num_visits[s][a]
 
-def train_qlearning_agent(env, agent, num_episodes):
-    """Train the Q-learning agent."""
+
+def monte_carlo_ev(env, agent, num_episodes):
+    """Monte Carlo Every Visit algorithm for Blackjack."""
     env = gym.wrappers.RecordEpisodeStatistics(env, buffer_length=num_episodes)
-    rewards = []
+    episode_rewards = []
+    num_wins = 0  # Track wins
 
     for episode in tqdm(range(num_episodes)):
-        obs, _ = env.reset()
+        s, _ = env.reset()  # Reset environment, get initial state s
         done = False
-        ep_reward = 0
+        episode_history = []  # Store (state, action, reward) for this episode
+        episode_reward = 0
 
         while not done:
-            action = agent.get_action(obs)
-            next_obs, reward, terminated, truncated, _ = env.step(action)
-            ep_reward += reward
-            agent.update(obs, action, reward, terminated, next_obs)
-            done = terminated or truncated
-            obs = next_obs
+            a = agent.get_action(s)  # Use epsilon-greedy policy to select action
+            next_s, reward, done, truncated, _ = env.step(a)  # Take action a
+            episode_history.append((s, a, reward))
+            s = next_s
+            episode_reward += reward
 
-        rewards.append(ep_reward)
-    
-    return env, rewards
+        # Update Q-values using Monte Carlo method
+        agent.update(episode_history)
+        episode_rewards.append(episode_reward)
 
-# ----------- Policy Grid Creation -----------
+        if episode_reward > 0:  # Winning episode
+            num_wins += 1
+
+    return env, episode_rewards
+
 def create_grids(agent, usable_ace=False):
     """Create value and policy grids for plotting."""
     state_value = defaultdict(float)
@@ -88,41 +92,6 @@ def create_grids(agent, usable_ace=False):
         arr=np.dstack([player_count, dealer_count]),
     )
     return value_grid, policy_grid
-
-# ----------- Plotting Functions -----------
-def plot_training_metrics(env, agent, rolling_length=500):
-    """Plot training metrics: rewards, lengths, and training error."""
-    fig, axs = plt.subplots(ncols=3, figsize=(18, 5))
-
-    # Plot rolling average of episode rewards
-    reward_moving_average = np.convolve(
-        np.array(env.return_queue).flatten(), np.ones(rolling_length), mode="valid"
-    ) / rolling_length
-    axs[0].plot(reward_moving_average)
-    axs[0].set_title("Episode Rewards")
-    axs[0].set_xlabel("Episode")
-    axs[0].set_ylabel("Average Reward")
-
-    # Plot rolling average of episode lengths
-    length_moving_average = np.convolve(
-        np.array(env.length_queue).flatten(), np.ones(rolling_length), mode="same"
-    ) / rolling_length
-    axs[1].plot(length_moving_average)
-    axs[1].set_title("Episode Lengths")
-    axs[1].set_xlabel("Episode")
-    axs[1].set_ylabel("Average Length")
-
-    # Plot rolling average of training error
-    training_error_moving_average = np.convolve(
-        np.array(agent.training_error), np.ones(rolling_length), mode="same"
-    ) / rolling_length
-    axs[2].plot(training_error_moving_average)
-    axs[2].set_title("Training Error")
-    axs[2].set_xlabel("Episode")
-    axs[2].set_ylabel("Average Error")
-
-    plt.tight_layout()
-    plt.show()
 
 def plot_value_and_policy(value_grid, policy_grid, title):
     """Plot value and policy grids."""
@@ -167,22 +136,17 @@ def plot_value_and_policy(value_grid, policy_grid, title):
     plt.tight_layout()
     plt.show()
 
-# ----------- Main Execution -----------
 if __name__ == "__main__":
-    # Initialize environment and agent
     env = gym.make("Blackjack-v1", sab=True)
+    # Initialize agent with learning parameters
     agent = BlackjackAgent(
         env=env,
-        learning_rate=LEARNING_RATE,
         epsilon=EPSILON,
-        discount_factor=DISCOUNT_FACTOR,
+        discount_factor=DISCOUNT_FACTOR
     )
 
-    # Train the agent
-    env = train_qlearning_agent(env, agent, NUM_EPISODES)
-
-    # Plot training metrics
-    plot_training_metrics(env, agent)
+    # Run Monte Carlo training
+    env = monte_carlo_ev(env, agent, NUM_EPISODES)
 
     # Create and plot value and policy grids
     value_grid, policy_grid = create_grids(agent, usable_ace=True)
@@ -190,3 +154,4 @@ if __name__ == "__main__":
 
     value_grid, policy_grid = create_grids(agent, usable_ace=False)
     plot_value_and_policy(value_grid, policy_grid, title="Without Usable Ace")
+
